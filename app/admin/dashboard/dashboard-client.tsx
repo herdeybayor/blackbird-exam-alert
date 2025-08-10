@@ -84,6 +84,9 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
                 <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/student-manage")}>
                     Students
                 </Button>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/faculty-manage")}>
+                    Faculties
+                </Button>
             </div>
 
             <section className="space-y-4">
