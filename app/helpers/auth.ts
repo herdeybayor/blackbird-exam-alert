@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+import { cookies } from "next/headers";
 
 import { StudentRegisterData, StudentLoginData } from "@/types/auth";
 
@@ -136,6 +137,26 @@ class AuthHelper {
             success: true,
             message: "Login successful",
             student: studentWithoutPassword,
+        };
+    }
+
+    public async studentLogout() {
+        const cookieStore = await cookies();
+        cookieStore.delete("student");
+
+        return {
+            success: true,
+            message: "Logout successful",
+        };
+    }
+
+    public async adminLogout() {
+        const cookieStore = await cookies();
+        cookieStore.delete("admin");
+
+        return {
+            success: true,
+            message: "Logout successful",
         };
     }
 }
