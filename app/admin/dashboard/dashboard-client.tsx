@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
-import { UserIcon, CalendarIcon, MessageSquareIcon, Menu, UserCircleIcon } from "lucide-react";
+import { UserIcon, CalendarIcon, MessageSquareIcon, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Admin } from "@/app/generated/prisma";
 import { NotAuthorized } from "../components/not-autorized";
+import { adminLogout } from "../actions";
+import { toast } from "sonner";
 
 export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
     const router = useRouter();
@@ -53,6 +55,16 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
         return <NotAuthorized />;
     }
 
+    const handleLogout = async () => {
+        const { success, message } = await adminLogout();
+        if (success) {
+            toast.success(message);
+            router.push("/admin/login");
+        } else {
+            toast.error(message);
+        }
+    };
+
     return (
         <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6 shadow-lg">
             <header className="flex items-center justify-between flex-wrap gap-4">
@@ -60,7 +72,9 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
                     <Menu className="h-6 w-6" />
                     <h1 className="text-xl md:text-2xl font-bold">Welcome, Admin!</h1>
                 </div>
-                <UserCircleIcon className="h-8 w-8" />
+                <Button variant="outline" className="w-full sm:w-auto" onClick={handleLogout}>
+                    Logout
+                </Button>
             </header>
 
             <div className="flex flex-col sm:flex-row gap-4 ">
