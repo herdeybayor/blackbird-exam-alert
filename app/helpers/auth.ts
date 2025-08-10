@@ -1,5 +1,7 @@
-import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import prisma from "@/lib/prisma";
+
+import { StudentRegisterData, StudentLoginData } from "@/types/auth";
 
 class AuthHelper {
     private hashPassword(password: string) {
@@ -68,6 +70,72 @@ class AuthHelper {
             success: true,
             message: "Login successful",
             admin: adminWithoutPassword,
+        };
+    }
+
+    public async studentRegister(data: StudentRegisterData) {
+        // check if student already exists
+        const student = await prisma.student.findUnique({
+            where: { email: data.email },
+        });
+
+        if (student) {
+            return {
+                success: false,
+                message: "Student already exists",
+            };
+        }
+
+        // hash password
+        const hashedPassword = await this.hashPassword(data.password);
+
+        // create student
+        const newStudent = await prisma.student.create({
+            data: { ...data, password: hashedPassword },
+            select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                matricNumber: true,
+            },
+        });
+
+        return {
+            success: true,
+            message: "Student registered successfully",
+            student: newStudent,
+        };
+    }
+
+    public async studentLogin(data: StudentLoginData) {
+        const student = await prisma.student.findUnique({
+            where: { matricNumber: data.matricNumber },
+        });
+
+        if (!student) {
+            return {
+                success: false,
+                message: "Invalid credentials",
+            };
+        }
+
+        // check if password is valid
+        const isPasswordValid = await this.verifyPassword(data.password, student.password);
+
+        if (!isPasswordValid) {
+            return {
+                success: false,
+                message: "Invalid credentials",
+            };
+        }
+
+        const { password: _, ...studentWithoutPassword } = student;
+
+        return {
+            success: true,
+            message: "Login successful",
+            student: studentWithoutPassword,
         };
     }
 }
