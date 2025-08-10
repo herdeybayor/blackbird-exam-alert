@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Admin {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique @map("email")
+  password  String   @map("password")
+  createdAt DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+model Student {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  matricNumber String   @unique @map("matric_number")
+  phone        String   @map("phone")
+  email        String   @unique @map("email")
+  faculty      String   @map("faculty")
+  department   String   @map("department")
+  level        String   @map("level")
+  password     String   @map("password")
+  createdAt    DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt    DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  @@map("students")
+}
