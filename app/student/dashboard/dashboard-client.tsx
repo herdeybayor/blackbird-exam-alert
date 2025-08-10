@@ -14,6 +14,8 @@ export default function DashboardClient({ student }: { student: Student }) {
         if (success) {
             toast.success(message);
             router.push("/student/login");
+        } else {
+            toast.error(message);
         }
     };
 
