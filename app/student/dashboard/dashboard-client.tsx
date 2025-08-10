@@ -23,6 +23,9 @@ export default function DashboardClient({ student }: { student: Student }) {
         <div className="flex flex-col items-center justify-center h-screen">
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <p className="text-lg">Welcome {student.firstName}</p>
+
+            <pre className="mt-4">{JSON.stringify(student, null, 2)}</pre>
+
             <Button onClick={handleLogout}>Logout</Button>
         </div>
     );
