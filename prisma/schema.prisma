@@ -41,3 +41,56 @@ model Student {
 
   @@map("students")
 }
+
+model Faculty {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @map("name")
+  createdAt DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  facultyHalls FacultyHall[]
+  timeTables   TimeTable[]
+
+  @@map("faculties")
+}
+
+model FacultyHall {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @map("name")
+  faculty     Faculty  @relation(fields: [facultyId], references: [id])
+  facultyId   String   @map("faculty_id") @db.Uuid
+  maxCapacity Int      @map("max_capacity")
+  createdAt   DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt   DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  @@map("faculty_halls")
+}
+
+model TimeTable {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @map("name")
+  faculty   Faculty  @relation(fields: [facultyId], references: [id])
+  facultyId String   @map("faculty_id") @db.Uuid
+  session   String   @unique @map("session")
+  createdAt DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  courses TimeTableCourse[]
+
+  @@map("time_tables")
+}
+
+model TimeTableCourse {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  timeTableId      String   @map("time_table_id") @db.Uuid
+  courseCode       String   @map("course_code")
+  courseTitle      String   @map("course_title")
+  courseUnit       Int      @map("course_unit")
+  numberOfStudents Int      @map("number_of_students")
+  createdAt        DateTime @default(dbgenerated("now()")) @map("created_at")
+  updatedAt        DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  timeTable TimeTable @relation(fields: [timeTableId], references: [id])
+
+  @@map("time_table_courses")
+}
