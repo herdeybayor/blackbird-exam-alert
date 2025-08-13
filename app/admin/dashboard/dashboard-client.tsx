@@ -2,15 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
-import { UserIcon, CalendarIcon, MessageSquareIcon, Menu } from "lucide-react";
+import { UserIcon, CalendarIcon, MessageSquareIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Admin } from "@/app/generated/prisma";
 import { NotAuthorized } from "../components/not-autorized";
-import { adminLogout } from "../actions";
-import { toast } from "sonner";
+import { AdminLayout } from "@/components/admin-layout";
 
 export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
     const router = useRouter();
@@ -55,85 +53,82 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
         return <NotAuthorized />;
     }
 
-    const handleLogout = async () => {
-        const { success, message } = await adminLogout();
-        if (success) {
-            toast.success(message);
-            router.push("/admin/login");
-        } else {
-            toast.error(message);
-        }
-    };
-
     return (
-        <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-6 shadow-lg">
-            <header className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center space-x-3">
-                    <Menu className="h-6 w-6" />
+        <AdminLayout>
+            <div className="max-w-6xl mx-auto space-y-6">
+                <header className="">
                     <h1 className="text-xl md:text-2xl font-bold">Welcome, Admin!</h1>
+                    <p className="text-muted-foreground mt-1">Manage your exam alert system from this dashboard</p>
+                </header>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/exam-manage")}>
+                        Exams
+                    </Button>
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/student-manage")}>
+                        Students
+                    </Button>
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/faculty-manage")}>
+                        Faculties
+                    </Button>
                 </div>
-                <Button variant="outline" className="w-full sm:w-auto" onClick={handleLogout}>
-                    Logout
-                </Button>
-            </header>
 
-            <div className="flex flex-col sm:flex-row gap-4 ">
-                <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/exam-manage")}>
-                    Exams
-                </Button>
-                <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/student-manage")}>
-                    Students
-                </Button>
-                <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/admin/faculty-manage")}>
-                    Faculties
-                </Button>
+                <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <Card className="bg-yellow-50 border-yellow-200">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                            <UserIcon className="h-4 w-4 text-yellow-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-yellow-700">{stats.students}</div>
+                            <p className="text-xs text-yellow-600 mt-1">Active students in system</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-green-50 border-green-200">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Scheduled Exams</CardTitle>
+                            <CalendarIcon className="h-4 w-4 text-green-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-green-700">{stats.exams}</div>
+                            <p className="text-xs text-green-600 mt-1">Upcoming exam schedules</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-blue-50 border-blue-200">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">SMS Sent</CardTitle>
+                            <MessageSquareIcon className="h-4 w-4 text-blue-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-blue-700">{stats.smsSent}</div>
+                            <p className="text-xs text-blue-600 mt-1">Messages sent this month</p>
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section>
+                    <h2 className="text-lg font-semibold mb-4">Recently Sent SMS</h2>
+                    <Card>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-64 p-4">
+                                <div className="space-y-4">
+                                    {recentSMS.map((sms, index) => (
+                                        <div key={index} className="pb-4 border-b last:border-b-0">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <p className="text-sm font-medium">Sent To: {sms.sentTo}</p>
+                                                <p className="text-xs text-muted-foreground">{sms.date}</p>
+                                            </div>
+                                            <p className="text-sm text-muted-foreground">{sms.content}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </section>
             </div>
-
-            <section className="space-y-4">
-                <Card className="bg-yellow-200">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Total Number of Students</CardTitle>
-                        <UserIcon className="h-5 w-5" />
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-2xl font-bold">{stats.students}</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-green-200">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Scheduled Exams</CardTitle>
-                        <CalendarIcon className="h-5 w-5" />
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-2xl font-bold">{stats.exams}</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-indigo-200">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>SMS Sent This Month</CardTitle>
-                        <MessageSquareIcon className="h-5 w-5" />
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-2xl font-bold">{stats.smsSent}</p>
-                    </CardContent>
-                </Card>
-            </section>
-
-            <section>
-                <h2 className="text-md font-semibold">Recently Sent SMS</h2>
-                <ScrollArea className="h-40 rounded-md border p-2 mt-2 flex flex-col gap-1">
-                    {recentSMS.map((sms, index) => (
-                        <div key={index} className="mb-6 ">
-                            <p className="text-sm font-medium">Sent To: {sms.sentTo}</p>
-                            <p className="text-xs text-gray-500">Date Sent: {sms.date}</p>
-                            <p className="text-sm mt-1">{sms.content}</p>
-                            <Separator className="my-2" />
-                        </div>
-                    ))}
-                </ScrollArea>
-            </section>
-        </main>
+        </AdminLayout>
     );
 }

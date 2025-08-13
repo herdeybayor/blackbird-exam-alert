@@ -20,6 +20,7 @@ const mockExams = [
 
 export default function ExamManagementPage() {
   const router = useRouter();
+  const [exams] = useState(mockExams);
 
   return (
     <main className="p-6 space-y-6">

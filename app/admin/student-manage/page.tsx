@@ -10,10 +10,11 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { MenuIcon, UserPlus, User } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
+import { AdminLayout } from "@/components/admin-layout";
 
 interface Student {
   firstName: string;
@@ -59,155 +60,143 @@ export default function StudentManage() {
   });
 
   return (
-    <main className="max-w-6xl mx-auto p-4 space-y-6">
-      {/* Header with Menu and User Icon */}
-      <header className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <MenuIcon className="h-6 w-6" />
-          <h1 className="text-lg font-bold">Student Management</h1>
-        </div>
-        <div className="flex items-center space-x-4">
+    <AdminLayout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold">Student Management</h1>
+            <p className="text-muted-foreground mt-1">Manage student records and information</p>
+          </div>
           <Button
-            className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full flex items-center space-x-2"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white flex items-center space-x-2"
             onClick={() => router.push("/admin/add-student")}
           >
-            {/* UserPlus icon inside button */}
             <UserPlus className="h-4 w-4" />
             <span>Add Student</span>
           </Button>
-          {/* User icon at top right */}
-          <User className="h-6 w-6 text-gray-600" />
+        </header>
+
+        {/* Search and Filters */}
+        <div className="space-y-4">
+          <Input
+            placeholder="Search student name"
+            className="max-w-md"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Faculty</label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Science">Science</SelectItem>
+                  <SelectItem value="Arts">Arts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Department</label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Computer Science">
+                    Computer Science
+                  </SelectItem>
+                  <SelectItem value="Mathematics">Mathematics</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Level</label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="100">100 Level</SelectItem>
+                  <SelectItem value="200">200 Level</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
-      </header>
 
-      {/* Search and Filters */}
-      <div className="space-y-4">
-        <Input
-          placeholder="Search student name"
-          className="rounded-md"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm">Faculty</label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Science">Science</SelectItem>
-                <SelectItem value="Arts">Arts</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm">Department</label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Computer Science">
-                  Computer Science
-                </SelectItem>
-                <SelectItem value="Mathematics">Mathematics</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm">Level</label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="100">100 Level</SelectItem>
-                <SelectItem value="200">200 Level</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Student Cards */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Students ({filteredStudents.length})</h2>
+          <ScrollArea className="h-[600px] pr-2">
+            <div className="space-y-4">
+              {filteredStudents.map((student, index) => (
+                <Card key={index} className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">
+                          {student.firstName} {student.lastName}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">{student.matricNumber}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            router.push(
+                              `/admin/edit-student?matric=${student.matricNumber}`
+                            )
+                          }
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            router.push(
+                              `/admin/delete-student?matric=${student.matricNumber}`
+                            )
+                          }
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                      <div>
+                        <span className="font-medium text-muted-foreground">Faculty</span>
+                        <p className="font-medium">{student.faculty}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Department</span>
+                        <p className="font-medium">{student.department}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Level</span>
+                        <p className="font-medium">{student.level}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-muted-foreground">Email</span>
+                        <p className="font-medium">{student.email}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-medium text-muted-foreground">Phone</span>
+                        <p className="font-medium">{student.phone}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       </div>
-
-      {/* Student Cards */}
-      <ScrollArea className="h-[400px] pr-2">
-        <div className="space-y-4">
-          {filteredStudents.map((student, index) => (
-            <Card key={index} className="bg-blue-50">
-              <CardContent className="p-4">
-                <div className="flex justify-end gap-2 mb-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      router.push(
-                        `/admin/edit-student?matric=${student.matricNumber}`
-                      )
-                    }
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() =>
-                      router.push(
-                        `/admin/delete-student?matric=${student.matricNumber}`
-                      )
-                    }
-                  >
-                    Delete
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                  <p>
-                    <span className="font-medium">First Name</span>
-                    <br />
-                    {student.firstName}
-                  </p>
-                  <p>
-                    <span className="font-medium">Last Name</span>
-                    <br />
-                    {student.lastName}
-                  </p>
-                  <p>
-                    <span className="font-medium">Matric Number</span>
-                    <br />
-                    {student.matricNumber}
-                  </p>
-                  <p>
-                    <span className="font-medium">Faculty</span>
-                    <br />
-                    {student.faculty}
-                  </p>
-                  <p>
-                    <span className="font-medium">Department</span>
-                    <br />
-                    {student.department}
-                  </p>
-                  <p>
-                    <span className="font-medium">Level</span>
-                    <br />
-                    {student.level}
-                  </p>
-                  <p>
-                    <span className="font-medium">Email Address</span>
-                    <br />
-                    {student.email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Phone Number</span>
-                    <br />
-                    {student.phone}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </ScrollArea>
-    </main>
+    </AdminLayout>
   );
 }
