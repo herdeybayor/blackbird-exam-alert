@@ -7,7 +7,8 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
-        "seed-faculties": "tsx prisma/faculty-seed.ts"
+        "seed-faculties": "tsx prisma/faculty-seed.ts",
+        "seed-complete": "tsx prisma/complete-seed.ts"
     },
     "dependencies": {
         "@prisma/client": "^6.13.0",
@@ -29,6 +30,7 @@
         "next": "15.3.3",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
+        "react-to-print": "^3.1.1",
         "sonner": "^2.0.5",
         "tailwind-merge": "^3.3.1"
     },

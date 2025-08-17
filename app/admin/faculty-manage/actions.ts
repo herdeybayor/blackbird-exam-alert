@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { Semester } from "@/app/generated/prisma";
 
 export async function getFaculties() {
     const faculties = await prisma.faculty.findMany({
@@ -9,7 +10,19 @@ export async function getFaculties() {
             facultyHalls: true,
             timeTables: {
                 include: {
-                    courses: true,
+                    courses: {
+                        include: {
+                            hall: true,
+                            examSessions: {
+                                include: {
+                                    hall: true
+                                },
+                                orderBy: {
+                                    sessionNumber: 'asc'
+                                }
+                            },
+                        },
+                    },
                 },
             },
         },
@@ -109,13 +122,15 @@ export async function deleteFacultyHall(id: string) {
     }
 }
 
-export async function createTimeTable(facultyId: string, name: string, session: string) {
+export async function createTimeTable(facultyId: string, name: string, session: string, semester: Semester, examStartDate?: Date) {
     try {
         const timetable = await prisma.timeTable.create({
             data: {
                 name,
                 facultyId,
                 session,
+                semester,
+                examStartDate,
             },
         });
 
@@ -127,16 +142,6 @@ export async function createTimeTable(facultyId: string, name: string, session: 
         };
     } catch (error: unknown) {
         console.error("Error creating timetable:", error);
-        
-        // Handle unique constraint violation for session
-        if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002' && 
-            'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta &&
-            Array.isArray(error.meta.target) && error.meta.target.includes('session')) {
-            return {
-                success: false,
-                message: "A timetable for this session already exists",
-            };
-        }
         
         return {
             success: false,
@@ -214,6 +219,296 @@ export async function deleteCourse(id: string) {
         return {
             success: false,
             message: "Failed to delete course",
+        };
+    }
+}
+
+export async function updateTimeTableExamStartDate(timeTableId: string, examStartDate: Date) {
+    try {
+        const timeTable = await prisma.timeTable.update({
+            where: { id: timeTableId },
+            data: { examStartDate },
+        });
+
+        revalidatePath("/admin/faculty-manage");
+        return {
+            success: true,
+            message: "Exam start date updated successfully",
+            timeTable,
+        };
+    } catch (error) {
+        console.error("Error updating exam start date:", error);
+        return {
+            success: false,
+            message: "Failed to update exam start date",
+        };
+    }
+}
+
+export async function scheduleExam(
+    courseId: string,
+    examDate: Date,
+    examTime: string,
+    duration: number,
+    hallId: string
+) {
+    try {
+        const course = await prisma.timeTableCourse.update({
+            where: { id: courseId },
+            data: {
+                examDate,
+                examTime,
+                duration,
+                hallId,
+            },
+        });
+
+        revalidatePath("/admin/faculty-manage");
+        return {
+            success: true,
+            message: "Exam scheduled successfully",
+            course,
+        };
+    } catch (error) {
+        console.error("Error scheduling exam:", error);
+        return {
+            success: false,
+            message: "Failed to schedule exam",
+        };
+    }
+}
+
+export async function autoScheduleExams(timeTableId: string) {
+    try {
+        const timeTable = await prisma.timeTable.findUnique({
+            where: { id: timeTableId },
+            include: {
+                courses: {
+                    orderBy: [
+                        { numberOfStudents: 'desc' },
+                        { courseCode: 'asc' }
+                    ],
+                    include: {
+                        examSessions: true
+                    }
+                },
+                faculty: {
+                    include: {
+                        facultyHalls: {
+                            orderBy: { maxCapacity: 'desc' }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!timeTable || !timeTable.examStartDate) {
+            return {
+                success: false,
+                message: "Timetable not found or exam start date not set",
+            };
+        }
+
+        const halls = timeTable.faculty.facultyHalls;
+        if (halls.length === 0) {
+            return {
+                success: false,
+                message: "No halls available for scheduling",
+            };
+        }
+
+        const examTimes = ['9:00', '14:00'];
+        const examDuration = 180; // 3 hours default
+        const startDate = new Date(timeTable.examStartDate);
+        const scheduleConflicts: string[] = [];
+
+        // Filter courses that need scheduling (courses without exam sessions)
+        const coursesToSchedule = timeTable.courses.filter(course => course.examSessions.length === 0);
+        
+        console.log(`Starting auto-schedule for ${coursesToSchedule.length} courses`);
+
+        for (const course of coursesToSchedule) {
+            const studentsToSchedule = course.numberOfStudents;
+            let remainingStudents = studentsToSchedule;
+            let sessionNumber = 1;
+            const examSessions: { hallId: string; examDate: Date; examTime: string; studentsAssigned: number; sessionNumber: number; hallName: string }[] = [];
+
+            console.log(`Scheduling course ${course.courseCode} with ${studentsToSchedule} students`);
+
+            // Try to schedule all students for this course
+            while (remainingStudents > 0) {
+                let bestSlot: { 
+                    hall: { id: string; name: string; maxCapacity: number; facultyId: string; createdAt: Date; updatedAt: Date }; 
+                    date: Date; 
+                    time: string; 
+                    studentsCanFit: number 
+                } | null = null;
+
+                const tempDate = new Date(startDate);
+                let attempts = 0;
+                const maxAttempts = 50;
+
+                // Find the best available slot
+                while (!bestSlot && attempts < maxAttempts) {
+                    for (const timeSlot of examTimes) {
+                        for (const hall of halls) {
+                            // Check if hall is available at this time
+                            const conflictingCourse = await prisma.timeTableCourse.findFirst({
+                                where: {
+                                    hallId: hall.id,
+                                    examDate: tempDate,
+                                    examTime: timeSlot,
+                                    NOT: { id: course.id }
+                                }
+                            });
+
+                            // Check if this hall is already used for this course at this time
+                            const existingSession = examSessions.find(session => 
+                                session.hallId === hall.id && 
+                                session.examDate.getTime() === tempDate.getTime() && 
+                                session.examTime === timeSlot
+                            );
+
+                            if (!conflictingCourse && !existingSession) {
+                                const studentsCanFit = Math.min(remainingStudents, hall.maxCapacity);
+                                
+                                // Prefer halls that can fit more students
+                                if (!bestSlot || studentsCanFit > bestSlot.studentsCanFit) {
+                                    bestSlot = {
+                                        hall: hall,
+                                        date: new Date(tempDate),
+                                        time: timeSlot,
+                                        studentsCanFit: studentsCanFit
+                                    };
+                                }
+                            }
+                        }
+                    }
+
+                    if (!bestSlot) {
+                        // Move to next day
+                        tempDate.setDate(tempDate.getDate() + 1);
+                        
+                        // Skip weekends
+                        while (tempDate.getDay() === 0 || tempDate.getDay() === 6) {
+                            tempDate.setDate(tempDate.getDate() + 1);
+                        }
+                        attempts++;
+                    }
+                }
+
+                if (bestSlot) {
+                    // Create exam session
+                    await prisma.courseExamSession.create({
+                        data: {
+                            courseId: course.id,
+                            hallId: bestSlot.hall.id,
+                            examDate: bestSlot.date,
+                            examTime: bestSlot.time,
+                            duration: examDuration,
+                            studentsAssigned: bestSlot.studentsCanFit,
+                            sessionNumber: sessionNumber
+                        }
+                    });
+
+                    examSessions.push({
+                        hallId: bestSlot.hall.id,
+                        examDate: bestSlot.date,
+                        examTime: bestSlot.time,
+                        studentsAssigned: bestSlot.studentsCanFit,
+                        sessionNumber: sessionNumber,
+                        hallName: bestSlot.hall.name
+                    });
+
+                    remainingStudents -= bestSlot.studentsCanFit;
+                    sessionNumber++;
+
+                    console.log(`Session ${sessionNumber - 1} for ${course.courseCode}: ${bestSlot.studentsCanFit} students in ${bestSlot.hall.name} on ${bestSlot.date.toISOString().split('T')[0]} at ${bestSlot.time}`);
+                } else {
+                    scheduleConflicts.push(`Course ${course.courseCode}: Unable to schedule ${remainingStudents} remaining students after ${maxAttempts} attempts`);
+                    break;
+                }
+            }
+
+            // Update the main course record with the first session details for backward compatibility
+            if (examSessions.length > 0) {
+                const firstSession = examSessions[0];
+                await prisma.timeTableCourse.update({
+                    where: { id: course.id },
+                    data: {
+                        examDate: firstSession.examDate,
+                        examTime: firstSession.examTime,
+                        duration: examDuration,
+                        hallId: firstSession.hallId,
+                    }
+                });
+
+                console.log(`Successfully scheduled ${course.courseCode} across ${examSessions.length} session(s)`);
+            }
+        }
+
+        revalidatePath("/admin/faculty-manage");
+        
+        // Log for debugging
+        console.log(`Auto-scheduling completed for timetable ${timeTableId}. Processed ${coursesToSchedule.length} courses with ${scheduleConflicts.length} conflicts.`);
+        
+        const scheduledCount = coursesToSchedule.length - scheduleConflicts.filter(c => c.includes("Unable to schedule")).length;
+        const message = scheduleConflicts.length > 0
+            ? `Auto-scheduling completed: ${scheduledCount} courses scheduled, ${scheduleConflicts.length} issues found.`
+            : `All ${scheduledCount} exams scheduled successfully across multiple halls where needed!`;
+
+        return {
+            success: true,
+            message,
+            conflicts: scheduleConflicts,
+        };
+    } catch (error) {
+        console.error("Error auto-scheduling exams:", error);
+        return {
+            success: false,
+            message: "Failed to auto-schedule exams",
+        };
+    }
+}
+
+export async function clearExamSchedule(timeTableId: string) {
+    try {
+        // Get all courses for this timetable
+        const courses = await prisma.timeTableCourse.findMany({
+            where: { timeTableId },
+            select: { id: true }
+        });
+
+        // Delete all exam sessions for these courses
+        await prisma.courseExamSession.deleteMany({
+            where: {
+                courseId: {
+                    in: courses.map(course => course.id)
+                }
+            }
+        });
+
+        // Clear the main course schedule fields
+        await prisma.timeTableCourse.updateMany({
+            where: { timeTableId },
+            data: {
+                examDate: null,
+                examTime: null,
+                duration: null,
+                hallId: null,
+            },
+        });
+
+        revalidatePath("/admin/faculty-manage");
+        return {
+            success: true,
+            message: "Exam schedule cleared successfully",
+        };
+    } catch (error) {
+        console.error("Error clearing exam schedule:", error);
+        return {
+            success: false,
+            message: "Failed to clear exam schedule",
         };
     }
 }
