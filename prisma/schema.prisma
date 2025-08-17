@@ -71,7 +71,8 @@ model TimeTable {
   name      String   @map("name")
   faculty   Faculty  @relation(fields: [facultyId], references: [id])
   facultyId String   @map("faculty_id") @db.Uuid
-  session   String   @unique @map("session")
+  semester  Semester @map("semester")
+  session   String   @map("session")
   createdAt DateTime @default(dbgenerated("now()")) @map("created_at")
   updatedAt DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
 
@@ -93,4 +94,9 @@ model TimeTableCourse {
   timeTable TimeTable @relation(fields: [timeTableId], references: [id])
 
   @@map("time_table_courses")
+}
+
+enum Semester {
+  FIRST
+  SECOND
 }

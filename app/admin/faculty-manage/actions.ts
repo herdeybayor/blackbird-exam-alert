@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { Semester } from "@/app/generated/prisma";
 
 export async function getFaculties() {
     const faculties = await prisma.faculty.findMany({
@@ -109,13 +110,14 @@ export async function deleteFacultyHall(id: string) {
     }
 }
 
-export async function createTimeTable(facultyId: string, name: string, session: string) {
+export async function createTimeTable(facultyId: string, name: string, session: string, semester: Semester) {
     try {
         const timetable = await prisma.timeTable.create({
             data: {
                 name,
                 facultyId,
                 session,
+                semester,
             },
         });
 
@@ -127,16 +129,6 @@ export async function createTimeTable(facultyId: string, name: string, session: 
         };
     } catch (error: unknown) {
         console.error("Error creating timetable:", error);
-        
-        // Handle unique constraint violation for session
-        if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002' && 
-            'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta &&
-            Array.isArray(error.meta.target) && error.meta.target.includes('session')) {
-            return {
-                success: false,
-                message: "A timetable for this session already exists",
-            };
-        }
         
         return {
             success: false,

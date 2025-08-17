@@ -6,6 +6,7 @@ import {
   FacultyHall,
   TimeTable,
   TimeTableCourse,
+  Semester,
 } from "@/app/generated/prisma";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   Plus,
@@ -33,6 +41,11 @@ import {
   BookOpen,
   Users,
   School,
+  ChevronDown,
+  ChevronRight,
+  Edit,
+  FolderOpen,
+  Folder,
 } from "lucide-react";
 import {
   createFaculty,
@@ -51,40 +64,82 @@ type FacultyWithRelations = Faculty & {
   timeTables: (TimeTable & { courses: TimeTableCourse[] })[];
 };
 
-type TabType = "faculties" | "halls" | "timetables" | "courses";
+type ExpandedState = {
+  faculties: Set<string>;
+  timetables: Set<string>;
+};
+
+type FormState = {
+  type: 'faculty' | 'hall' | 'timetable' | 'course' | null;
+  parentId?: string;
+  facultyId?: string;
+};
 
 export function FacultyManageClient({
   faculties: initialFaculties,
 }: {
   faculties: FacultyWithRelations[];
 }) {
-  const [activeTab, setActiveTab] = useState<TabType>("faculties");
   const [faculties] = useState(initialFaculties);
   const [loading, setLoading] = useState(false);
+  const [expandedState, setExpandedState] = useState<ExpandedState>({
+    faculties: new Set(),
+    timetables: new Set(),
+  });
+  const [activeForm, setActiveForm] = useState<FormState>({ type: null });
 
-  // Faculty form state
+  // Form state
   const [newFacultyName, setNewFacultyName] = useState("");
-
-  // Hall form state
-  const [selectedFacultyForHall, setSelectedFacultyForHall] = useState("");
   const [newHallName, setNewHallName] = useState("");
   const [newHallCapacity, setNewHallCapacity] = useState("");
-
-  // Timetable form state
-  const [selectedFacultyForTimetable, setSelectedFacultyForTimetable] =
-    useState("");
   const [newTimetableName, setNewTimetableName] = useState("");
   const [newTimetableSession, setNewTimetableSession] = useState("");
-
-  // Course form state
-  const [selectedTimetableForCourse, setSelectedTimetableForCourse] =
-    useState("");
+  const [newTimetableSemester, setNewTimetableSemester] = useState<Semester | "">("");
   const [newCourseCode, setNewCourseCode] = useState("");
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseUnit, setNewCourseUnit] = useState("");
   const [newCourseStudents, setNewCourseStudents] = useState("");
 
-  // Handlers
+  // Expansion handlers
+  const toggleFaculty = (facultyId: string) => {
+    setExpandedState(prev => ({
+      ...prev,
+      faculties: prev.faculties.has(facultyId)
+        ? new Set([...prev.faculties].filter(id => id !== facultyId))
+        : new Set([...prev.faculties, facultyId])
+    }));
+  };
+
+  const toggleTimetable = (timetableId: string) => {
+    setExpandedState(prev => ({
+      ...prev,
+      timetables: prev.timetables.has(timetableId)
+        ? new Set([...prev.timetables].filter(id => id !== timetableId))
+        : new Set([...prev.timetables, timetableId])
+    }));
+  };
+
+  // Form handlers
+  const showForm = (type: FormState['type'], parentId?: string, facultyId?: string) => {
+    setActiveForm({ type, parentId, facultyId });
+  };
+
+  const hideForm = () => {
+    setActiveForm({ type: null });
+    // Reset form state
+    setNewFacultyName("");
+    setNewHallName("");
+    setNewHallCapacity("");
+    setNewTimetableName("");
+    setNewTimetableSession("");
+    setNewTimetableSemester("");
+    setNewCourseCode("");
+    setNewCourseTitle("");
+    setNewCourseUnit("");
+    setNewCourseStudents("");
+  };
+
+  // Action handlers
   const handleCreateFaculty = async () => {
     if (!newFacultyName.trim()) {
       toast.error("Please enter a faculty name");
@@ -96,8 +151,7 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      setNewFacultyName("");
-      // Refresh data
+      hideForm();
       window.location.reload();
     } else {
       toast.error(result.message);
@@ -127,7 +181,7 @@ export function FacultyManageClient({
   };
 
   const handleAddHall = async () => {
-    if (!selectedFacultyForHall || !newHallName.trim() || !newHallCapacity) {
+    if (!activeForm.facultyId || !newHallName.trim() || !newHallCapacity) {
       toast.error("Please fill all fields");
       return;
     }
@@ -140,16 +194,14 @@ export function FacultyManageClient({
 
     setLoading(true);
     const result = await addFacultyHall(
-      selectedFacultyForHall,
+      activeForm.facultyId,
       newHallName.trim(),
       capacity
     );
 
     if (result.success) {
       toast.success(result.message);
-      setSelectedFacultyForHall("");
-      setNewHallName("");
-      setNewHallCapacity("");
+      hideForm();
       window.location.reload();
     } else {
       toast.error(result.message);
@@ -176,9 +228,10 @@ export function FacultyManageClient({
 
   const handleCreateTimetable = async () => {
     if (
-      !selectedFacultyForTimetable ||
+      !activeForm.facultyId ||
       !newTimetableName.trim() ||
-      !newTimetableSession.trim()
+      !newTimetableSession.trim() ||
+      !newTimetableSemester
     ) {
       toast.error("Please fill all fields");
       return;
@@ -186,16 +239,15 @@ export function FacultyManageClient({
 
     setLoading(true);
     const result = await createTimeTable(
-      selectedFacultyForTimetable,
+      activeForm.facultyId,
       newTimetableName.trim(),
-      newTimetableSession.trim()
+      newTimetableSession.trim(),
+      newTimetableSemester as Semester
     );
 
     if (result.success) {
       toast.success(result.message);
-      setSelectedFacultyForTimetable("");
-      setNewTimetableName("");
-      setNewTimetableSession("");
+      hideForm();
       window.location.reload();
     } else {
       toast.error(result.message);
@@ -226,7 +278,7 @@ export function FacultyManageClient({
 
   const handleAddCourse = async () => {
     if (
-      !selectedTimetableForCourse ||
+      !activeForm.parentId ||
       !newCourseCode.trim() ||
       !newCourseTitle.trim() ||
       !newCourseUnit ||
@@ -248,7 +300,7 @@ export function FacultyManageClient({
 
     setLoading(true);
     const result = await addCourseToTimeTable(
-      selectedTimetableForCourse,
+      activeForm.parentId,
       newCourseCode.trim(),
       newCourseTitle.trim(),
       unit,
@@ -257,11 +309,7 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      setSelectedTimetableForCourse("");
-      setNewCourseCode("");
-      setNewCourseTitle("");
-      setNewCourseUnit("");
-      setNewCourseStudents("");
+      hideForm();
       window.location.reload();
     } else {
       toast.error(result.message);
@@ -286,454 +334,469 @@ export function FacultyManageClient({
     setLoading(false);
   };
 
-  // Get all timetables for course dropdown
-  const allTimetables = faculties.flatMap((faculty) =>
-    faculty.timeTables.map((tt) => ({
-      ...tt,
-      facultyName: faculty.name,
-    }))
-  );
-
-  const tabs = [
-    { id: "faculties" as TabType, label: "Faculties", icon: School },
-    { id: "halls" as TabType, label: "Halls", icon: Building },
-    { id: "timetables" as TabType, label: "Timetables", icon: Calendar },
-    { id: "courses" as TabType, label: "Courses", icon: BookOpen },
-  ];
+  // Helper function to get faculty name by ID
+  const getFacultyById = (facultyId: string) => {
+    return faculties.find(f => f.id === facultyId);
+  };
 
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Faculty Management</h1>
+          <Button
+            onClick={() => showForm('faculty')}
+            className="flex items-center gap-2"
+            disabled={loading}
+          >
+            <Plus className="h-4 w-4" />
+            Add Faculty
+          </Button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex space-x-1 border-b">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <Button
-                key={tab.id}
-                variant={activeTab === tab.id ? "default" : "ghost"}
-                className="flex items-center gap-2"
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </Button>
-            );
-          })}
-        </div>
+        {/* Global Add Faculty Form */}
+        {activeForm.type === 'faculty' && (
+          <Card className="border-2 border-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <School className="h-5 w-5" />
+                Create New Faculty
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <Label htmlFor="faculty-name">Faculty Name</Label>
+                  <Input
+                    id="faculty-name"
+                    placeholder="Enter faculty name"
+                    value={newFacultyName}
+                    onChange={(e) => setNewFacultyName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateFaculty()}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button onClick={handleCreateFaculty} disabled={loading} className="flex-1">
+                    {loading ? "Creating..." : "Create"}
+                  </Button>
+                  <Button variant="outline" onClick={hideForm}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Tab Content */}
-        <div className="space-y-6">
-          {/* Faculties Tab */}
-          {activeTab === "faculties" && (
-            <div className="space-y-6">
-              {/* Create Faculty Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Create New Faculty
-                  </CardTitle>
-                  <CardDescription>
-                    Add a new faculty to the system
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1">
-                      <Label htmlFor="faculty-name">Faculty Name</Label>
-                      <Input
-                        id="faculty-name"
-                        placeholder="Enter faculty name"
-                        value={newFacultyName}
-                        onChange={(e) => setNewFacultyName(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={handleCreateFaculty} disabled={loading}>
-                      {loading ? "Creating..." : "Create Faculty"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Faculties List */}
-              <div className="grid gap-4">
-                <h2 className="text-xl font-semibold">All Faculties</h2>
-                {faculties.length === 0 ? (
-                  <Card>
-                    <CardContent className="flex items-center justify-center py-8">
-                      <p className="text-muted-foreground">
-                        No faculties found
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  faculties.map((faculty) => (
-                    <Card key={faculty.id}>
-                      <CardContent className="flex items-center justify-between py-4">
-                        <div>
-                          <h3 className="font-semibold">{faculty.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {faculty.facultyHalls.length} halls •{" "}
-                            {faculty.timeTables.length} timetables
-                          </p>
+        {/* Hierarchical Faculty List */}
+        <div className="space-y-4">
+          {faculties.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <School className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground text-lg mb-2">No faculties found</p>
+                <p className="text-sm text-muted-foreground">Create your first faculty to get started</p>
+              </CardContent>
+            </Card>
+          ) : (
+            faculties.map((faculty) => (
+              <Card key={faculty.id} className="overflow-hidden">
+                <Collapsible
+                  open={expandedState.faculties.has(faculty.id)}
+                  onOpenChange={() => toggleFaculty(faculty.id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div className="p-4 hover:bg-muted/50 cursor-pointer border-b">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {expandedState.faculties.has(faculty.id) ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <School className="h-5 w-5 text-primary" />
+                          <div>
+                            <h3 className="font-semibold text-lg">{faculty.name}</h3>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Building className="h-3 w-3" />
+                                {faculty.facultyHalls.length} halls
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {faculty.timeTables.length} timetables
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <BookOpen className="h-3 w-3" />
+                                {faculty.timeTables.reduce((acc, tt) => acc + tt.courses.length, 0)} courses
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeleteFaculty(faculty.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFaculty(faculty.id);
+                          }}
                           disabled={loading}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="p-4 space-y-6 bg-muted/20">
+                      {/* Quick Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => showForm('hall', undefined, faculty.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Hall
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => showForm('timetable', undefined, faculty.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Timetable
+                        </Button>
+                      </div>
 
-          {/* Halls Tab */}
-          {activeTab === "halls" && (
-            <div className="space-y-6">
-              {/* Add Hall Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Add New Hall
-                  </CardTitle>
-                  <CardDescription>Add a new hall to a faculty</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <Label htmlFor="hall-faculty">Faculty</Label>
-                      <Select
-                        value={selectedFacultyForHall}
-                        onValueChange={setSelectedFacultyForHall}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select faculty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {faculties.map((faculty) => (
-                            <SelectItem key={faculty.id} value={faculty.id}>
-                              {faculty.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="hall-name">Hall Name</Label>
-                      <Input
-                        id="hall-name"
-                        placeholder="Enter hall name"
-                        value={newHallName}
-                        onChange={(e) => setNewHallName(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="hall-capacity">Max Capacity</Label>
-                      <Input
-                        id="hall-capacity"
-                        type="number"
-                        placeholder="Enter max capacity"
-                        value={newHallCapacity}
-                        onChange={(e) => setNewHallCapacity(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <Button
-                        onClick={handleAddHall}
-                        disabled={loading}
-                        className="w-full"
-                      >
-                        {loading ? "Adding..." : "Add Hall"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                      {/* Add Hall Form */}
+                      {activeForm.type === 'hall' && activeForm.facultyId === faculty.id && (
+                        <Card className="border-2 border-blue-200 bg-blue-50/50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <Building className="h-4 w-4" />
+                              Add Hall to {faculty.name}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label htmlFor="hall-name">Hall Name</Label>
+                                <Input
+                                  id="hall-name"
+                                  placeholder="Enter hall name"
+                                  value={newHallName}
+                                  onChange={(e) => setNewHallName(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="hall-capacity">Max Capacity</Label>
+                                <Input
+                                  id="hall-capacity"
+                                  type="number"
+                                  placeholder="Enter capacity"
+                                  value={newHallCapacity}
+                                  onChange={(e) => setNewHallCapacity(e.target.value)}
+                                />
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <Button onClick={handleAddHall} disabled={loading} className="flex-1">
+                                  {loading ? "Adding..." : "Add Hall"}
+                                </Button>
+                                <Button variant="outline" onClick={hideForm}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
-              {/* Halls List */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">All Halls</h2>
-                {faculties.map(
-                  (faculty) =>
-                    faculty.facultyHalls.length > 0 && (
-                      <div key={faculty.id}>
-                        <h3 className="text-lg font-medium mb-3">
-                          {faculty.name}
-                        </h3>
-                        <div className="grid gap-3 mb-6">
-                          {faculty.facultyHalls.map((hall) => (
-                            <Card key={hall.id}>
-                              <CardContent className="flex items-center justify-between py-4">
+                      {/* Add Timetable Form */}
+                      {activeForm.type === 'timetable' && activeForm.facultyId === faculty.id && (
+                        <Card className="border-2 border-green-200 bg-green-50/50">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <Calendar className="h-4 w-4" />
+                              Add Timetable to {faculty.name}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div>
+                                <Label htmlFor="timetable-name">Timetable Name</Label>
+                                <Input
+                                  id="timetable-name"
+                                  placeholder="Enter timetable name"
+                                  value={newTimetableName}
+                                  onChange={(e) => setNewTimetableName(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="timetable-session">Session</Label>
+                                <Input
+                                  id="timetable-session"
+                                  placeholder="e.g., 2023/2024"
+                                  value={newTimetableSession}
+                                  onChange={(e) => setNewTimetableSession(e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="timetable-semester">Semester</Label>
+                                <Select
+                                  value={newTimetableSemester}
+                                  onValueChange={(value) => setNewTimetableSemester(value as Semester)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select semester" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="FIRST">First Semester</SelectItem>
+                                    <SelectItem value="SECOND">Second Semester</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <Button onClick={handleCreateTimetable} disabled={loading} className="flex-1">
+                                  {loading ? "Creating..." : "Create"}
+                                </Button>
+                                <Button variant="outline" onClick={hideForm}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Halls Section */}
+                      {faculty.facultyHalls.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4 text-blue-600" />
+                            <h4 className="font-medium">Halls ({faculty.facultyHalls.length})</h4>
+                          </div>
+                          <div className="grid gap-2 ml-6">
+                            {faculty.facultyHalls.map((hall) => (
+                              <div key={hall.id} className="flex items-center justify-between p-3 bg-background rounded border">
                                 <div>
-                                  <h4 className="font-semibold">{hall.name}</h4>
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Users className="h-4 w-4" />
-                                    Max Capacity: {hall.maxCapacity}
-                                  </p>
+                                  <span className="font-medium">{hall.name}</span>
+                                  <Badge variant="secondary" className="ml-2">
+                                    <Users className="h-3 w-3 mr-1" />
+                                    {hall.maxCapacity}
+                                  </Badge>
                                 </div>
                                 <Button
-                                  variant="destructive"
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteHall(hall.id)}
                                   disabled={loading}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
-                              </CardContent>
-                            </Card>
-                          ))}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )
-                )}
-              </div>
-            </div>
-          )}
+                      )}
 
-          {/* Timetables Tab */}
-          {activeTab === "timetables" && (
-            <div className="space-y-6">
-              {/* Create Timetable Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Create New Timetable
-                  </CardTitle>
-                  <CardDescription>
-                    Create a new timetable for a faculty session
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="timetable-faculty">Faculty</Label>
-                      <Select
-                        value={selectedFacultyForTimetable}
-                        onValueChange={setSelectedFacultyForTimetable}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select faculty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {faculties.map((faculty) => (
-                            <SelectItem key={faculty.id} value={faculty.id}>
-                              {faculty.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="timetable-name">Timetable Name</Label>
-                      <Input
-                        id="timetable-name"
-                        placeholder="Enter timetable name"
-                        value={newTimetableName}
-                        onChange={(e) => setNewTimetableName(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="timetable-session">Session</Label>
-                      <Input
-                        id="timetable-session"
-                        placeholder="e.g., 2023/2024"
-                        value={newTimetableSession}
-                        onChange={(e) => setNewTimetableSession(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button onClick={handleCreateTimetable} disabled={loading}>
-                      {loading ? "Generating..." : "Generate Timetable"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Timetables List */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">All Timetables</h2>
-                {faculties.map(
-                  (faculty) =>
-                    faculty.timeTables.length > 0 && (
-                      <div key={faculty.id}>
-                        <h3 className="text-lg font-medium mb-3">
-                          {faculty.name}
-                        </h3>
-                        <div className="grid gap-3 mb-6">
-                          {faculty.timeTables.map((timetable) => (
-                            <Card key={timetable.id}>
-                              <CardContent className="flex items-center justify-between py-4">
-                                <div>
-                                  <h4 className="font-semibold">
-                                    {timetable.name}
-                                  </h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    Session: {timetable.session} •{" "}
-                                    {timetable.courses.length} courses
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleDeleteTimetable(timetable.id)
-                                  }
-                                  disabled={loading}
+                      {/* Timetables Section */}
+                      {faculty.timeTables.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-green-600" />
+                            <h4 className="font-medium">Timetables ({faculty.timeTables.length})</h4>
+                          </div>
+                          <div className="space-y-2 ml-6">
+                            {faculty.timeTables.map((timetable) => (
+                              <Card key={timetable.id} className="overflow-hidden">
+                                <Collapsible
+                                  open={expandedState.timetables.has(timetable.id)}
+                                  onOpenChange={() => toggleTimetable(timetable.id)}
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                )}
-              </div>
-            </div>
-          )}
+                                  <CollapsibleTrigger asChild>
+                                    <div className="p-3 hover:bg-muted/50 cursor-pointer border-b border-border/50">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          {expandedState.timetables.has(timetable.id) ? (
+                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                          ) : (
+                                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                          )}
+                                          <div>
+                                            <span className="font-medium">{timetable.name}</span>
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                              <Badge variant="outline" className="text-xs">
+                                                {timetable.session}
+                                              </Badge>
+                                              <Badge variant="secondary" className="text-xs">
+                                                {timetable.semester === 'FIRST' ? '1st' : '2nd'} Semester
+                                              </Badge>
+                                              <span>{timetable.courses.length} courses</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              showForm('course', timetable.id, faculty.id);
+                                            }}
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteTimetable(timetable.id);
+                                            }}
+                                            disabled={loading}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CollapsibleTrigger>
+                                  
+                                  <CollapsibleContent>
+                                    <div className="p-3 space-y-3 bg-muted/10">
+                                      {/* Add Course Form */}
+                                      {activeForm.type === 'course' && activeForm.parentId === timetable.id && (
+                                        <Card className="border-2 border-orange-200 bg-orange-50/50">
+                                          <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm">
+                                              <BookOpen className="h-3 w-3" />
+                                              Add Course to {timetable.name}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                              <div>
+                                                <Label htmlFor="course-code" className="text-xs">Course Code</Label>
+                                                <Input
+                                                  id="course-code"
+                                                  placeholder="e.g., CSC101"
+                                                  value={newCourseCode}
+                                                  onChange={(e) => setNewCourseCode(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="course-title" className="text-xs">Course Title</Label>
+                                                <Input
+                                                  id="course-title"
+                                                  placeholder="Enter title"
+                                                  value={newCourseTitle}
+                                                  onChange={(e) => setNewCourseTitle(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="course-unit" className="text-xs">Unit</Label>
+                                                <Input
+                                                  id="course-unit"
+                                                  type="number"
+                                                  placeholder="3"
+                                                  value={newCourseUnit}
+                                                  onChange={(e) => setNewCourseUnit(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="course-students" className="text-xs">Students</Label>
+                                                <Input
+                                                  id="course-students"
+                                                  type="number"
+                                                  placeholder="150"
+                                                  value={newCourseStudents}
+                                                  onChange={(e) => setNewCourseStudents(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <Button onClick={handleAddCourse} disabled={loading} size="sm">
+                                                {loading ? "Adding..." : "Add Course"}
+                                              </Button>
+                                              <Button variant="outline" onClick={hideForm} size="sm">
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </CardContent>
+                                        </Card>
+                                      )}
 
-          {/* Courses Tab */}
-          {activeTab === "courses" && (
-            <div className="space-y-6">
-              {/* Add Course Form */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5" />
-                    Add New Course
-                  </CardTitle>
-                  <CardDescription>
-                    Add a new course to a timetable
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div>
-                      <Label htmlFor="course-timetable">Timetable</Label>
-                      <Select
-                        value={selectedTimetableForCourse}
-                        onValueChange={setSelectedTimetableForCourse}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select timetable" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allTimetables.map((timetable) => (
-                            <SelectItem key={timetable.id} value={timetable.id}>
-                              {timetable.facultyName} - {timetable.name} (
-                              {timetable.session})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="course-code">Course Code</Label>
-                      <Input
-                        id="course-code"
-                        placeholder="e.g., CSC101"
-                        value={newCourseCode}
-                        onChange={(e) => setNewCourseCode(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="course-title">Course Title</Label>
-                      <Input
-                        id="course-title"
-                        placeholder="Enter course title"
-                        value={newCourseTitle}
-                        onChange={(e) => setNewCourseTitle(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="course-unit">Course Unit</Label>
-                      <Input
-                        id="course-unit"
-                        type="number"
-                        placeholder="e.g., 3"
-                        value={newCourseUnit}
-                        onChange={(e) => setNewCourseUnit(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="course-students">No. of Students</Label>
-                      <Input
-                        id="course-students"
-                        type="number"
-                        placeholder="e.g., 150"
-                        value={newCourseStudents}
-                        onChange={(e) => setNewCourseStudents(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button onClick={handleAddCourse} disabled={loading}>
-                      {loading ? "Adding..." : "Add Course"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Courses List */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">All Courses</h2>
-                {faculties.map((faculty) =>
-                  faculty.timeTables.map(
-                    (timetable) =>
-                      timetable.courses.length > 0 && (
-                        <div key={timetable.id}>
-                          <h3 className="text-lg font-medium mb-3">
-                            {faculty.name} - {timetable.name} (
-                            {timetable.session})
-                          </h3>
-                          <div className="grid gap-3 mb-6">
-                            {timetable.courses.map((course) => (
-                              <Card key={course.id}>
-                                <CardContent className="flex items-center justify-between py-4">
-                                  <div>
-                                    <h4 className="font-semibold">
-                                      {course.courseCode} - {course.courseTitle}
-                                    </h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      Unit: {course.courseUnit} • Students:{" "}
-                                      {course.numberOfStudents}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() =>
-                                      handleDeleteCourse(course.id)
-                                    }
-                                    disabled={loading}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </CardContent>
+                                      {/* Courses List */}
+                                      {timetable.courses.length > 0 ? (
+                                        <div className="space-y-2">
+                                          <div className="flex items-center gap-2">
+                                            <BookOpen className="h-3 w-3 text-orange-600" />
+                                            <span className="text-sm font-medium">Courses ({timetable.courses.length})</span>
+                                          </div>
+                                          <div className="grid gap-1 ml-4">
+                                            {timetable.courses.map((course) => (
+                                              <div key={course.id} className="flex items-center justify-between p-2 bg-background rounded border text-sm">
+                                                <div>
+                                                  <span className="font-medium">{course.courseCode}</span>
+                                                  <span className="text-muted-foreground ml-2">{course.courseTitle}</span>
+                                                  <div className="flex items-center gap-2 mt-1">
+                                                    <Badge variant="secondary" className="text-xs">
+                                                      {course.courseUnit} units
+                                                    </Badge>
+                                                    <Badge variant="secondary" className="text-xs">
+                                                      <Users className="h-2 w-2 mr-1" />
+                                                      {course.numberOfStudents}
+                                                    </Badge>
+                                                  </div>
+                                                </div>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => handleDeleteCourse(course.id)}
+                                                  disabled={loading}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-center py-4 text-sm text-muted-foreground">
+                                          No courses added yet
+                                        </div>
+                                      )}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               </Card>
                             ))}
                           </div>
                         </div>
-                      )
-                  )
-                )}
-              </div>
-            </div>
+                      )}
+
+                      {/* Empty states */}
+                      {faculty.facultyHalls.length === 0 && faculty.timeTables.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <div className="space-y-2">
+                            <p>No halls or timetables created yet</p>
+                            <p className="text-sm">Use the buttons above to get started</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            ))
           )}
         </div>
       </div>
