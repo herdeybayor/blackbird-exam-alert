@@ -1,48 +1,120 @@
 "use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/admin-layout";
+import { ArrowLeft, Calendar, Clock } from "lucide-react";
+import { toast } from "sonner";
+
+interface ExamFormData {
+  courseTitle: string;
+  courseCode: string;
+  faculty: string;
+  department: string;
+  level: string;
+  email: string;
+  examDate: string;
+  examTime: string;
+  venue: string;
+  id?: number; // optional for new exams
+}
+
+// ✅ This should ideally come from a global store or API
+const mockExams = [
+  {
+    id: 1,
+    title: "Introduction to Computer Science",
+    code: "210",
+    department: "Computer Science",
+    faculty: "Science",
+    level: "100 Level",
+    date: "2025-04-25",
+    time: "11:30",
+    venue: "3 in 1 Hall",
+    email: "bulalab@school.ng",
+  },
+  {
+    id: 2,
+    title: "Data Structures and Algorithms",
+    code: "202",
+    department: "Computer Science",
+    faculty: "Science",
+    level: "200 Level",
+    date: "2025-04-27",
+    time: "09:00",
+    venue: "ICT Hall",
+    email: "algo@school.ng",
+  },
+];
 
 export default function EditExamPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const examId = Number(searchParams.get("id"));
 
-  const [formData, setFormData] = useState({
-    courseTitle: "Introduction to Computer Science",
-    courseCode: "20250112",
-    faculty: "Faculty of Science",
-    department: "Computer Science Department",
-    level: "100 Level",
-    email: "bulalab@school.ng",
-    examDate: "2025-04-25",
-    examTime: "10:00",
-    venue: "3 in 1 Hall",
-  });
+  const [formData, setFormData] = useState<ExamFormData | null>(null);
+
+  // ✅ Load correct exam when page loads
+  useEffect(() => {
+    const exam = mockExams.find((e) => e.id === examId);
+    if (exam) {
+      setFormData({
+        courseTitle: exam.title,
+        courseCode: exam.code,
+        faculty: exam.faculty,
+        department: exam.department,
+        level: exam.level,
+        email: exam.email,
+        examDate: exam.date,
+        examTime: exam.time,
+        venue: exam.venue,
+      });
+    }
+  }, [examId]);
+
+  if (!formData) return <p className="p-4">Loading exam...</p>;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => (prev ? { ...prev, [name]: value } : null));
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    toast.success("Exam schedule saved and SMS notification sent to students.");
+
+    // get current exams from localStorage
+    const storedExams = localStorage.getItem("exams");
+    const exams = storedExams ? JSON.parse(storedExams) : mockExams;
+
+    // update the right exam
+    const updatedExams = exams.map((exam: ExamFormData) =>
+      exam.id === examId
+        ? {
+            ...exam,
+            title: formData.courseTitle,
+            code: formData.courseCode,
+            faculty: formData.faculty,
+            department: formData.department,
+            level: formData.level,
+            email: formData.email,
+            date: formData.examDate,
+            time: formData.examTime,
+            venue: formData.venue,
+          }
+        : exam
+    );
+
+    // save back to localStorage
+    localStorage.setItem("exams", JSON.stringify(updatedExams));
+
+    toast.success("Exam updated successfully!");
+    router.push("/admin/exam-management");
   };
 
   return (
     <AdminLayout>
-      <div className="max-w-md mx-auto p-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center text-sm text-gray-600 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back
-        </button>
-
+      <div className="max-w-6xl mx-auto space-y-6">
         <h2 className="text-xl font-semibold mb-1">Edit Exam</h2>
         <p className="text-sm text-gray-500 mb-4">Edit Exam Schedule</p>
 
@@ -174,7 +246,7 @@ export default function EditExamPage() {
 
           <button
             type="submit"
-            className="w-full bg-purple-700 text-white py-2 rounded mt-4"
+            className="w-90 bg-black text-center block mx-auto text-white py-2 rounded mt-4"
           >
             Save Exam
           </button>

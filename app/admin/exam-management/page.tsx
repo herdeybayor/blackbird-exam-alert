@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminLayout } from "@/components/admin-layout";
+import { useEffect } from "react";
 
 const mockExams = [
   {
@@ -51,11 +52,21 @@ const mockExams = [
   },
 ];
 
+// Load exams from localStorage if available
+
 export default function ExamManagementPage() {
   const router = useRouter();
   const [exams, setExams] = useState(mockExams);
   const [searchTerm, setSearchTerm] = useState("");
 
+  useEffect(() => {
+    const storedExams = localStorage.getItem("exams");
+    if (storedExams) {
+      setExams(JSON.parse(storedExams));
+    } else {
+      localStorage.setItem("exams", JSON.stringify(mockExams)); // first-time seed
+    }
+  }, []);
   // Filter exams based on search term
   const filteredExams = exams.filter((exam) =>
     exam.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -64,7 +75,9 @@ export default function ExamManagementPage() {
   // Handle delete with confirmation
   const handleDelete = (id: number) => {
     if (confirm("Are you sure you want to delete this exam?")) {
-      setExams((prev) => prev.filter((exam) => exam.id !== id));
+      const updated = exams.filter((exam) => exam.id !== id);
+      setExams(updated);
+      localStorage.setItem("exams", JSON.stringify(updated));
     }
   };
 
@@ -72,12 +85,12 @@ export default function ExamManagementPage() {
     <AdminLayout>
       <main className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">📋 Exam Schedule Management</h2>
+          <h2 className="text-xl font-semibold">Exam Schedule Management</h2>
           <button
-            className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+            className="bg-black text-white px-4 py-2 rounded "
             onClick={() => router.push("/admin/exam-management/add-exam")}
           >
-            ➕ Add Exam
+            Add Exam
           </button>
         </div>
 
@@ -99,11 +112,14 @@ export default function ExamManagementPage() {
                 <button
                   className="text-blue-600"
                   onClick={() =>
-                    router.push("/admin/exam-management/edit-exam")
+                    router.push(
+                      `/admin/exam-management/edit-exam?id=${exam.id}`
+                    )
                   }
                 >
                   Edit
                 </button>
+
                 <button
                   className="text-red-600"
                   onClick={() => handleDelete(exam.id)}

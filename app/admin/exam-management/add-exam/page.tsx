@@ -27,16 +27,38 @@ export default function AddExamPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success(
-      "Exam schedule created and SMS notification sent to students."
-    );
+
+    // Get existing exams from localStorage
+    const storedExams = localStorage.getItem("exams");
+    const exams = storedExams ? JSON.parse(storedExams) : [];
+
+    // Create a new exam object
+    const newExam = {
+      id: Date.now(), // unique ID
+      title: formData.title,
+      code: formData.code,
+      faculty: formData.faculty,
+      department: formData.department,
+      level: formData.level,
+      email: formData.email,
+      date: formData.date,
+      time: formData.time,
+      venue: formData.venue,
+    };
+
+    // Save back to localStorage
+    const updatedExams = [...exams, newExam];
+    localStorage.setItem("exams", JSON.stringify(updatedExams));
+
+    toast.success("Exam created successfully!");
+
     router.push("/admin/exam-management");
   };
 
   return (
     <AdminLayout>
       <main className="p-6 space-y-4">
-        <h2 className="text-xl font-semibold">➕ Add Exam</h2>
+        <h2 className="text-xl font-semibold">Add Exam</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
@@ -113,9 +135,9 @@ export default function AddExamPage() {
 
           <button
             type="submit"
-            className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+            className="w-90 bg-black text-white p-2 rounded mx-auto block text-center"
           >
-            ✅ Create Exam
+            Create Exam
           </button>
         </form>
       </main>
