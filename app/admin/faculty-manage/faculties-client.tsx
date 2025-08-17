@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Faculty,
   FacultyHall,
   TimeTable,
   TimeTableCourse,
+  CourseExamSession,
   Semester,
 } from "@/app/generated/prisma";
 import { Button } from "@/components/ui/button";
@@ -14,7 +16,6 @@ import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -31,8 +32,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { useReactToPrint } from "react-to-print";
 import {
   Plus,
   Trash2,
@@ -44,8 +45,12 @@ import {
   ChevronDown,
   ChevronRight,
   Edit,
-  FolderOpen,
-  Folder,
+  Clock,
+  MapPin,
+  Wand2,
+  RotateCcw,
+  CalendarClock,
+  Printer,
 } from "lucide-react";
 import {
   createFaculty,
@@ -56,12 +61,21 @@ import {
   deleteTimeTable,
   addCourseToTimeTable,
   deleteCourse,
+  updateTimeTableExamStartDate,
+  scheduleExam,
+  autoScheduleExams,
+  clearExamSchedule,
 } from "./actions";
 import { AdminLayout } from "@/components/admin-layout";
 
 type FacultyWithRelations = Faculty & {
   facultyHalls: FacultyHall[];
-  timeTables: (TimeTable & { courses: TimeTableCourse[] })[];
+  timeTables: (TimeTable & { 
+    courses: (TimeTableCourse & { 
+      hall: FacultyHall | null;
+      examSessions: (CourseExamSession & { hall: FacultyHall })[];
+    })[] 
+  })[];
 };
 
 type ExpandedState = {
@@ -70,18 +84,20 @@ type ExpandedState = {
 };
 
 type FormState = {
-  type: 'faculty' | 'hall' | 'timetable' | 'course' | null;
+  type: 'faculty' | 'hall' | 'timetable' | 'course' | 'exam-date' | 'schedule-exam' | null;
   parentId?: string;
   facultyId?: string;
+  courseId?: string;
 };
 
 export function FacultyManageClient({
-  faculties: initialFaculties,
+  faculties,
 }: {
   faculties: FacultyWithRelations[];
 }) {
-  const [faculties] = useState(initialFaculties);
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
   const [expandedState, setExpandedState] = useState<ExpandedState>({
     faculties: new Set(),
     timetables: new Set(),
@@ -99,6 +115,13 @@ export function FacultyManageClient({
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseUnit, setNewCourseUnit] = useState("");
   const [newCourseStudents, setNewCourseStudents] = useState("");
+  
+  // Exam scheduling form state
+  const [examStartDate, setExamStartDate] = useState("");
+  const [examDate, setExamDate] = useState("");
+  const [examTime, setExamTime] = useState("");
+  const [examDuration, setExamDuration] = useState("180");
+  const [selectedHall, setSelectedHall] = useState("");
 
   // Expansion handlers
   const toggleFaculty = (facultyId: string) => {
@@ -120,8 +143,8 @@ export function FacultyManageClient({
   };
 
   // Form handlers
-  const showForm = (type: FormState['type'], parentId?: string, facultyId?: string) => {
-    setActiveForm({ type, parentId, facultyId });
+  const showForm = (type: FormState['type'], parentId?: string, facultyId?: string, courseId?: string) => {
+    setActiveForm({ type, parentId, facultyId, courseId });
   };
 
   const hideForm = () => {
@@ -137,6 +160,11 @@ export function FacultyManageClient({
     setNewCourseTitle("");
     setNewCourseUnit("");
     setNewCourseStudents("");
+    setExamStartDate("");
+    setExamDate("");
+    setExamTime("");
+    setExamDuration("180");
+    setSelectedHall("");
   };
 
   // Action handlers
@@ -152,7 +180,7 @@ export function FacultyManageClient({
     if (result.success) {
       toast.success(result.message);
       hideForm();
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -173,7 +201,7 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -202,7 +230,7 @@ export function FacultyManageClient({
     if (result.success) {
       toast.success(result.message);
       hideForm();
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -219,7 +247,7 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -233,22 +261,25 @@ export function FacultyManageClient({
       !newTimetableSession.trim() ||
       !newTimetableSemester
     ) {
-      toast.error("Please fill all fields");
+      toast.error("Please fill all required fields");
       return;
     }
+
+    const startDate = examStartDate ? new Date(examStartDate) : undefined;
 
     setLoading(true);
     const result = await createTimeTable(
       activeForm.facultyId,
       newTimetableName.trim(),
       newTimetableSession.trim(),
-      newTimetableSemester as Semester
+      newTimetableSemester as Semester,
+      startDate
     );
 
     if (result.success) {
       toast.success(result.message);
       hideForm();
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -269,7 +300,7 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -310,7 +341,7 @@ export function FacultyManageClient({
     if (result.success) {
       toast.success(result.message);
       hideForm();
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -327,21 +358,271 @@ export function FacultyManageClient({
 
     if (result.success) {
       toast.success(result.message);
-      window.location.reload();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
     setLoading(false);
   };
 
-  // Helper function to get faculty name by ID
-  const getFacultyById = (facultyId: string) => {
-    return faculties.find(f => f.id === facultyId);
+  // Exam scheduling handlers
+  const handleUpdateExamStartDate = async () => {
+    if (!activeForm.parentId || !examStartDate) {
+      toast.error("Please select an exam start date");
+      return;
+    }
+
+    setLoading(true);
+    const result = await updateTimeTableExamStartDate(activeForm.parentId, new Date(examStartDate));
+
+    if (result.success) {
+      toast.success(result.message);
+      hideForm();
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+    setLoading(false);
   };
+
+  const handleScheduleExam = async () => {
+    if (!activeForm.courseId || !examDate || !examTime || !examDuration || !selectedHall) {
+      toast.error("Please fill all fields");
+      return;
+    }
+
+    const duration = parseInt(examDuration);
+    if (isNaN(duration) || duration <= 0) {
+      toast.error("Please enter a valid duration");
+      return;
+    }
+
+    setLoading(true);
+    const result = await scheduleExam(
+      activeForm.courseId,
+      new Date(examDate),
+      examTime,
+      duration,
+      selectedHall
+    );
+
+    if (result.success) {
+      toast.success(result.message);
+      hideForm();
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+    setLoading(false);
+  };
+
+  const handleAutoSchedule = async (timeTableId: string) => {
+    if (!confirm("This will automatically schedule all unscheduled courses. Continue?")) {
+      return;
+    }
+
+    setLoading(true);
+    const result = await autoScheduleExams(timeTableId);
+
+    if (result.success) {
+      toast.success(result.message);
+      if (result.conflicts && result.conflicts.length > 0) {
+        console.log("Scheduling conflicts:", result.conflicts);
+      }
+      // Small delay to ensure database transaction is committed
+      setTimeout(() => {
+        router.refresh();
+      }, 100);
+    } else {
+      toast.error(result.message);
+    }
+    setLoading(false);
+  };
+
+  const handleClearSchedule = async (timeTableId: string) => {
+    if (!confirm("This will clear all exam schedules for this timetable. Continue?")) {
+      return;
+    }
+
+    setLoading(true);
+    const result = await clearExamSchedule(timeTableId);
+
+    if (result.success) {
+      toast.success(result.message);
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+    setLoading(false);
+  };
+
+  // State for print content
+  const [printContent, setPrintContent] = useState<React.ReactNode>(null);
+  
+  // Print to PDF functionality
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: "Exam Timetable",
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 0.75in;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+          font-size: 12px;
+          line-height: 1.4;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-page-break {
+          page-break-before: always;
+        }
+        .print-only {
+          display: block !important;
+        }
+        h1 {
+          font-size: 18px;
+          margin-bottom: 16px;
+        }
+        h2 {
+          font-size: 16px;
+          margin-bottom: 12px;
+        }
+        h3 {
+          font-size: 14px;
+          margin-bottom: 8px;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+        th, td {
+          border: 1px solid #000;
+          padding: 4px 8px;
+          text-align: left;
+        }
+        th {
+          background-color: #f5f5f5;
+          font-weight: bold;
+        }
+      }
+    `,
+  });
+
+  // Function to create a printable timetable for a specific timetable
+  const createPrintableTimetable = (faculty: FacultyWithRelations, timetable: TimeTable & { courses: (TimeTableCourse & { hall: FacultyHall | null; examSessions: (CourseExamSession & { hall: FacultyHall })[]; })[] }) => {
+    return (
+      <div className="p-8">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-bold mb-2">{faculty.name}</h1>
+          <h2 className="text-xl font-semibold mb-1">Examination Timetable</h2>
+          <div className="text-base text-gray-600">
+            <div>{timetable.name}</div>
+            <div>Session: {timetable.session} | Semester: {timetable.semester === 'FIRST' ? '1st' : '2nd'}</div>
+            {timetable.examStartDate && (
+              <div>Exam Start Date: {new Date(timetable.examStartDate).toLocaleDateString()}</div>
+            )}
+          </div>
+        </div>
+        
+        {timetable.courses.length > 0 ? (
+          <table className="w-full border-collapse border-2 border-gray-600 text-sm">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-600 px-3 py-2 text-left font-bold">Course Code</th>
+                <th className="border border-gray-600 px-3 py-2 text-left font-bold">Course Title</th>
+                <th className="border border-gray-600 px-3 py-2 text-center font-bold">Units</th>
+                <th className="border border-gray-600 px-3 py-2 text-center font-bold">Students</th>
+                <th className="border border-gray-600 px-3 py-2 text-center font-bold">Date</th>
+                <th className="border border-gray-600 px-3 py-2 text-center font-bold">Time</th>
+                <th className="border border-gray-600 px-3 py-2 text-center font-bold">Hall</th>
+              </tr>
+            </thead>
+            <tbody>
+              {timetable.courses.map((course) => {
+                if (course.examSessions.length > 0) {
+                  return course.examSessions.map((session, index) => (
+                    <tr key={`${course.id}-${session.id}`} className="border-b">
+                      {index === 0 && (
+                        <>
+                          <td rowSpan={course.examSessions.length} className="border border-gray-600 px-3 py-2 font-semibold align-top">
+                            {course.courseCode}
+                          </td>
+                          <td rowSpan={course.examSessions.length} className="border border-gray-600 px-3 py-2 align-top">
+                            {course.courseTitle}
+                          </td>
+                          <td rowSpan={course.examSessions.length} className="border border-gray-600 px-3 py-2 text-center align-top">
+                            {course.courseUnit}
+                          </td>
+                          <td rowSpan={course.examSessions.length} className="border border-gray-600 px-3 py-2 text-center align-top">
+                            {course.numberOfStudents}
+                          </td>
+                        </>
+                      )}
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {new Date(session.examDate).toLocaleDateString()}
+                      </td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {session.examTime}
+                      </td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {session.hall.name}<br/>
+                        <span className="text-xs text-gray-600">({session.studentsAssigned} students)</span>
+                      </td>
+                    </tr>
+                  ));
+                } else {
+                  return (
+                    <tr key={course.id} className="border-b">
+                      <td className="border border-gray-600 px-3 py-2 font-semibold">{course.courseCode}</td>
+                      <td className="border border-gray-600 px-3 py-2">{course.courseTitle}</td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">{course.courseUnit}</td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">{course.numberOfStudents}</td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {course.examDate ? new Date(course.examDate).toLocaleDateString() : 'TBD'}
+                      </td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {course.examTime || 'TBD'}
+                      </td>
+                      <td className="border border-gray-600 px-3 py-2 text-center">
+                        {course.hall?.name || 'TBD'}
+                      </td>
+                    </tr>
+                  );
+                }
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-lg">No courses scheduled in this timetable</p>
+          </div>
+        )}
+        
+        <div className="mt-6 text-sm text-gray-600">
+          <p>Generated on: {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</p>
+        </div>
+      </div>
+    );
+  };
+  
+  // Function to handle printing a specific timetable
+  const handlePrintTimetable = (faculty: FacultyWithRelations, timetable: TimeTable & { courses: (TimeTableCourse & { hall: FacultyHall | null; examSessions: (CourseExamSession & { hall: FacultyHall })[]; })[] }) => {
+    setPrintContent(createPrintableTimetable(faculty, timetable));
+    // Small delay to ensure state is updated
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
+      <div ref={printRef} className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Faculty Management</h1>
           <Button
@@ -525,7 +806,7 @@ export function FacultyManageClient({
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                               <div>
                                 <Label htmlFor="timetable-name">Timetable Name</Label>
                                 <Input
@@ -559,14 +840,23 @@ export function FacultyManageClient({
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <div className="flex items-end gap-2">
-                                <Button onClick={handleCreateTimetable} disabled={loading} className="flex-1">
-                                  {loading ? "Creating..." : "Create"}
-                                </Button>
-                                <Button variant="outline" onClick={hideForm}>
-                                  Cancel
-                                </Button>
+                              <div>
+                                <Label htmlFor="exam-start-date">Exam Start Date</Label>
+                                <Input
+                                  id="exam-start-date"
+                                  type="date"
+                                  value={examStartDate}
+                                  onChange={(e) => setExamStartDate(e.target.value)}
+                                />
                               </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button onClick={handleCreateTimetable} disabled={loading}>
+                                {loading ? "Creating..." : "Create"}
+                              </Button>
+                              <Button variant="outline" onClick={hideForm}>
+                                Cancel
+                              </Button>
                             </div>
                           </CardContent>
                         </Card>
@@ -636,6 +926,12 @@ export function FacultyManageClient({
                                                 {timetable.semester === 'FIRST' ? '1st' : '2nd'} Semester
                                               </Badge>
                                               <span>{timetable.courses.length} courses</span>
+                                              {timetable.examStartDate && (
+                                                <Badge variant="default" className="text-xs flex items-center gap-1">
+                                                  <CalendarClock className="h-2 w-2" />
+                                                  {new Date(timetable.examStartDate).toLocaleDateString()}
+                                                </Badge>
+                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -647,8 +943,60 @@ export function FacultyManageClient({
                                               e.stopPropagation();
                                               showForm('course', timetable.id, faculty.id);
                                             }}
+                                            title="Add Course"
+                                            className="no-print"
                                           >
                                             <Plus className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              showForm('exam-date', timetable.id, faculty.id);
+                                            }}
+                                            title="Set Exam Start Date"
+                                            className="no-print"
+                                          >
+                                            <CalendarClock className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleAutoSchedule(timetable.id);
+                                            }}
+                                            disabled={loading}
+                                            title="Auto Schedule Exams"
+                                            className="no-print"
+                                          >
+                                            <Wand2 className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleClearSchedule(timetable.id);
+                                            }}
+                                            disabled={loading}
+                                            title="Clear Schedule"
+                                            className="no-print"
+                                          >
+                                            <RotateCcw className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePrintTimetable(faculty, timetable);
+                                            }}
+                                            title="Print Timetable"
+                                            className="no-print"
+                                          >
+                                            <Printer className="h-3 w-3" />
                                           </Button>
                                           <Button
                                             variant="ghost"
@@ -658,6 +1006,8 @@ export function FacultyManageClient({
                                               handleDeleteTimetable(timetable.id);
                                             }}
                                             disabled={loading}
+                                            title="Delete Timetable"
+                                            className="no-print"
                                           >
                                             <Trash2 className="h-3 w-3" />
                                           </Button>
@@ -668,6 +1018,40 @@ export function FacultyManageClient({
                                   
                                   <CollapsibleContent>
                                     <div className="p-3 space-y-3 bg-muted/10">
+                                      {/* Set Exam Start Date Form */}
+                                      {activeForm.type === 'exam-date' && activeForm.parentId === timetable.id && (
+                                        <Card className="border-2 border-purple-200 bg-purple-50/50">
+                                          <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm">
+                                              <CalendarClock className="h-3 w-3" />
+                                              Set Exam Start Date for {timetable.name}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                              <div>
+                                                <Label htmlFor="exam-start-date-input" className="text-xs">Exam Start Date</Label>
+                                                <Input
+                                                  id="exam-start-date-input"
+                                                  type="date"
+                                                  value={examStartDate}
+                                                  onChange={(e) => setExamStartDate(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div className="flex items-end gap-2">
+                                                <Button onClick={handleUpdateExamStartDate} disabled={loading} size="sm">
+                                                  {loading ? "Updating..." : "Set Date"}
+                                                </Button>
+                                                <Button variant="outline" onClick={hideForm} size="sm">
+                                                  Cancel
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </CardContent>
+                                        </Card>
+                                      )}
+
                                       {/* Add Course Form */}
                                       {activeForm.type === 'course' && activeForm.parentId === timetable.id && (
                                         <Card className="border-2 border-orange-200 bg-orange-50/50">
@@ -734,6 +1118,78 @@ export function FacultyManageClient({
                                         </Card>
                                       )}
 
+                                      {/* Schedule Individual Exam Form */}
+                                      {activeForm.type === 'schedule-exam' && activeForm.courseId && (
+                                        <Card className="border-2 border-indigo-200 bg-indigo-50/50">
+                                          <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm">
+                                              <Clock className="h-3 w-3" />
+                                              Schedule Exam for {timetable.courses.find(c => c.id === activeForm.courseId)?.courseCode}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                              <div>
+                                                <Label htmlFor="exam-date" className="text-xs">Exam Date</Label>
+                                                <Input
+                                                  id="exam-date"
+                                                  type="date"
+                                                  value={examDate}
+                                                  onChange={(e) => setExamDate(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="exam-time" className="text-xs">Exam Time</Label>
+                                                <Select value={examTime} onValueChange={setExamTime}>
+                                                  <SelectTrigger className="h-8">
+                                                    <SelectValue placeholder="Select time" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="9:00">9:00 AM</SelectItem>
+                                                    <SelectItem value="14:00">2:00 PM</SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="exam-duration" className="text-xs">Duration (minutes)</Label>
+                                                <Input
+                                                  id="exam-duration"
+                                                  type="number"
+                                                  placeholder="180"
+                                                  value={examDuration}
+                                                  onChange={(e) => setExamDuration(e.target.value)}
+                                                  className="h-8"
+                                                />
+                                              </div>
+                                              <div>
+                                                <Label htmlFor="exam-hall" className="text-xs">Hall</Label>
+                                                <Select value={selectedHall} onValueChange={setSelectedHall}>
+                                                  <SelectTrigger className="h-8">
+                                                    <SelectValue placeholder="Select hall" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {faculty.facultyHalls.map((hall) => (
+                                                      <SelectItem key={hall.id} value={hall.id}>
+                                                        {hall.name} (capacity: {hall.maxCapacity})
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <Button onClick={handleScheduleExam} disabled={loading} size="sm">
+                                                {loading ? "Scheduling..." : "Schedule Exam"}
+                                              </Button>
+                                              <Button variant="outline" onClick={hideForm} size="sm">
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </CardContent>
+                                        </Card>
+                                      )}
+
                                       {/* Courses List */}
                                       {timetable.courses.length > 0 ? (
                                         <div className="space-y-2">
@@ -744,9 +1200,11 @@ export function FacultyManageClient({
                                           <div className="grid gap-1 ml-4">
                                             {timetable.courses.map((course) => (
                                               <div key={course.id} className="flex items-center justify-between p-2 bg-background rounded border text-sm">
-                                                <div>
-                                                  <span className="font-medium">{course.courseCode}</span>
-                                                  <span className="text-muted-foreground ml-2">{course.courseTitle}</span>
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="font-medium">{course.courseCode}</span>
+                                                    <span className="text-muted-foreground">{course.courseTitle}</span>
+                                                  </div>
                                                   <div className="flex items-center gap-2 mt-1">
                                                     <Badge variant="secondary" className="text-xs">
                                                       {course.courseUnit} units
@@ -755,16 +1213,100 @@ export function FacultyManageClient({
                                                       <Users className="h-2 w-2 mr-1" />
                                                       {course.numberOfStudents}
                                                     </Badge>
+                                                    {course.examSessions.length > 0 ? (
+                                                      <div className="space-y-2">
+                                                        <div className="flex items-center gap-2">
+                                                          <Badge variant="default" className="text-xs">
+                                                            {course.examSessions.length} session{course.examSessions.length > 1 ? 's' : ''}
+                                                          </Badge>
+                                                          {course.examSessions.length > 1 && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                              Multi-hall exam
+                                                            </Badge>
+                                                          )}
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                          {course.examSessions.map((session, index) => (
+                                                            <div key={session.id} className="bg-muted/30 p-3 rounded-md border transition-colors hover:bg-muted/40">
+                                                              <div className="flex items-center justify-between mb-2">
+                                                                <div className="flex items-center gap-2">
+                                                                  <Badge variant="outline" className="text-xs font-mono bg-white">
+                                                                    Session {index + 1}
+                                                                  </Badge>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                  <span className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded">
+                                                                    <Users className="h-3 w-3 text-blue-600" />
+                                                                    <span className="font-medium">{session.studentsAssigned}</span>
+                                                                  </span>
+                                                                </div>
+                                                              </div>
+                                                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                                <div className="flex items-center gap-2 text-xs bg-blue-50 px-2 py-1 rounded">
+                                                                  <Calendar className="h-3 w-3 text-blue-600" />
+                                                                  <span className="font-medium">{new Date(session.examDate).toLocaleDateString()}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs bg-green-50 px-2 py-1 rounded">
+                                                                  <Clock className="h-3 w-3 text-green-600" />
+                                                                  <span className="font-medium">{session.examTime}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-xs bg-orange-50 px-2 py-1 rounded">
+                                                                  <MapPin className="h-3 w-3 text-orange-600" />
+                                                                  <span className="font-medium">{session.hall.name}</span>
+                                                                </div>
+                                                              </div>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    ) : course.examDate ? (
+                                                      <div className="bg-muted/30 p-3 rounded-md border">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                          <div className="flex items-center gap-2 text-xs bg-blue-50 px-2 py-1 rounded">
+                                                            <Calendar className="h-3 w-3 text-blue-600" />
+                                                            <span className="font-medium">{new Date(course.examDate).toLocaleDateString()}</span>
+                                                          </div>
+                                                          <div className="flex items-center gap-2 text-xs bg-green-50 px-2 py-1 rounded">
+                                                            <Clock className="h-3 w-3 text-green-600" />
+                                                            <span className="font-medium">{course.examTime}</span>
+                                                          </div>
+                                                          {course.hall && (
+                                                            <div className="flex items-center gap-2 text-xs bg-orange-50 px-2 py-1 rounded">
+                                                              <MapPin className="h-3 w-3 text-orange-600" />
+                                                              <span className="font-medium">{course.hall.name}</span>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="bg-yellow-50 border border-yellow-200 p-2 rounded-md">
+                                                        <div className="flex items-center gap-2">
+                                                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                                          <span className="text-xs text-yellow-700 font-medium">No exam scheduled yet</span>
+                                                        </div>
+                                                      </div>
+                                                    )}
                                                   </div>
                                                 </div>
-                                                <Button
-                                                  variant="ghost"
-                                                  size="sm"
-                                                  onClick={() => handleDeleteCourse(course.id)}
-                                                  disabled={loading}
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                </Button>
+                                                <div className="flex items-center gap-1 no-print">
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => showForm('schedule-exam', timetable.id, faculty.id, course.id)}
+                                                    title="Schedule Exam"
+                                                  >
+                                                    <Edit className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteCourse(course.id)}
+                                                    disabled={loading}
+                                                    title="Delete Course"
+                                                  >
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
                                               </div>
                                             ))}
                                           </div>
@@ -798,6 +1340,11 @@ export function FacultyManageClient({
               </Card>
             ))
           )}
+        </div>
+        
+        {/* Hidden print content */}
+        <div className="hidden print:block">
+          {printContent}
         </div>
       </div>
     </AdminLayout>

@@ -120,3 +120,55 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print Styles */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-page-break {
+    page-break-before: always;
+  }
+  
+  /* Ensure proper colors in print */
+  .bg-muted\/30 {
+    background-color: #f8f9fa !important;
+    border: 1px solid #dee2e6 !important;
+  }
+  
+  /* Make text more readable in print */
+  .text-muted-foreground {
+    color: #6c757d !important;
+  }
+  
+  /* Hide interactive elements */
+  button:not(.print-visible),
+  .cursor-pointer {
+    display: none !important;
+  }
+  
+  /* Optimize layout for print */
+  .space-y-6 {
+    space-y: 1rem !important;
+  }
+  
+  .space-y-4 {
+    space-y: 0.75rem !important;
+  }
+  
+  .space-y-3 {
+    space-y: 0.5rem !important;
+  }
+  
+  .space-y-2 {
+    space-y: 0.25rem !important;
+  }
+}
