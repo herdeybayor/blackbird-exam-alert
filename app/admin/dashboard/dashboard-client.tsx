@@ -15,7 +15,7 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
     const [stats, setStats] = useState({
         students: 120,
         exams: 45,
-        smsSent: 300,
+        emailsSent: 300,
     });
 
     useEffect(() => {
@@ -27,7 +27,7 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
             const fakeData = {
                 students: 150,
                 exams: 50,
-                smsSent: 340,
+                emailsSent: 340,
             };
 
             setStats(fakeData);
@@ -36,7 +36,7 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
         fetchFakeStats();
     }, []);
 
-    const recentSMS = [
+    const recentEmails = [
         {
             sentTo: "200 students",
             date: "25 October 2025",
@@ -98,29 +98,29 @@ export function AdminDashboardClient({ admin }: { admin: Admin | null }) {
 
                     <Card className="bg-blue-50 border-blue-200">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">SMS Sent</CardTitle>
+                            <CardTitle className="text-sm font-medium">Emails Sent</CardTitle>
                             <MessageSquareIcon className="h-4 w-4 text-blue-600" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-blue-700">{stats.smsSent}</div>
+                            <div className="text-2xl font-bold text-blue-700">{stats.emailsSent}</div>
                             <p className="text-xs text-blue-600 mt-1">Messages sent this month</p>
                         </CardContent>
                     </Card>
                 </section>
 
                 <section>
-                    <h2 className="text-lg font-semibold mb-4">Recently Sent SMS</h2>
+                    <h2 className="text-lg font-semibold mb-4">Recently Sent Emails</h2>
                     <Card>
                         <CardContent className="p-0">
                             <ScrollArea className="h-64 p-4">
                                 <div className="space-y-4">
-                                    {recentSMS.map((sms, index) => (
+                                    {recentEmails.map((email, index) => (
                                         <div key={index} className="pb-4 border-b last:border-b-0">
                                             <div className="flex justify-between items-start mb-2">
-                                                <p className="text-sm font-medium">Sent To: {sms.sentTo}</p>
-                                                <p className="text-xs text-muted-foreground">{sms.date}</p>
+                                                <p className="text-sm font-medium">Sent To: {email.sentTo}</p>
+                                                <p className="text-xs text-muted-foreground">{email.date}</p>
                                             </div>
-                                            <p className="text-sm text-muted-foreground">{sms.content}</p>
+                                            <p className="text-sm text-muted-foreground">{email.content}</p>
                                         </div>
                                     ))}
                                 </div>

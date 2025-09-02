@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/admin-layout";
 
-export default function SMSNotificationPanel() {
+export default function AdminSettings() {
   const router = useRouter();
   return (
     <AdminLayout>
@@ -18,7 +18,7 @@ export default function SMSNotificationPanel() {
           </div>
         </header>
 
-        {/* SMS Template */}
+        {/* Settings Options */}
 
         <Button
           variant="ghost"
