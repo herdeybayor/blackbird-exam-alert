@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { StudentLayout } from "@/components/student-layout";
 
-export default function SMSNotificationPanel() {
+export default function StudentSettings() {
   const router = useRouter();
   return (
     <StudentLayout>
@@ -18,7 +18,7 @@ export default function SMSNotificationPanel() {
           </p>
         </header>
 
-        {/* SMS Template */}
+        {/* Settings Options */}
 
         <Button
           variant="ghost"

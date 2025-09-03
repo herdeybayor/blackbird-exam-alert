@@ -101,16 +101,16 @@ const navSections: NavSection[] = [
     title: "Communication",
     items: [
       {
-        title: "SMS Notifications",
-        href: "/admin/sms-noti-panel",
+        title: "Email Notifications",
+        href: "/admin/email-noti-panel",
         icon: MessageSquare,
         description: "Send notifications & templates",
       },
       {
         title: "Logs & Reports",
-        href: "/admin/sms-log",
+        href: "/admin/email-log",
         icon: BarChart3,
-        description: "View SMS logs and reports",
+        description: "View email logs and reports",
       },
     ],
   },

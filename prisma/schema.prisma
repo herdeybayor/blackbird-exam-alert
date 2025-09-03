@@ -39,6 +39,8 @@ model Student {
   createdAt    DateTime @default(dbgenerated("now()")) @map("created_at")
   updatedAt    DateTime @default(dbgenerated("now()")) @updatedAt @map("updated_at")
 
+  notifications Notification[]
+
   @@map("students")
 }
 
@@ -128,4 +130,27 @@ model CourseExamSession {
 enum Semester {
   FIRST
   SECOND
+}
+
+enum NotificationType {
+  SCHEDULE
+  REMINDER
+  CHANGE
+  EMERGENCY
+}
+
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientId String           @map("recipient_id") @db.Uuid
+  type        NotificationType @map("type")
+  subject     String           @map("subject")
+  message     String           @map("message")
+  status      String           @default("pending") @map("status") // pending, sent, delivered, failed
+  sentAt      DateTime?        @map("sent_at")
+  createdAt   DateTime         @default(dbgenerated("now()")) @map("created_at")
+  updatedAt   DateTime         @default(dbgenerated("now()")) @updatedAt @map("updated_at")
+
+  recipient Student @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
