@@ -78,22 +78,10 @@ const navSections: NavSection[] = [
     title: "Management",
     items: [
       {
-        title: "Students",
-        href: "/admin/student-manage",
-        icon: GraduationCap,
-        description: "Manage student records",
-      },
-      {
         title: "Faculty",
         href: "/admin/faculty-manage",
         icon: Building2,
         description: "Manage faculties & departments",
-      },
-      {
-        title: "Exam Schedule",
-        href: "/admin/exam-management",
-        icon: Calendar,
-        description: "Schedule and manage exams",
       },
     ],
   },

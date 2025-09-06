@@ -14,14 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminLayout } from "@/components/admin-layout";
-import { 
-  CalendarIcon, 
-  Mail, 
+import {
+  CalendarIcon,
+  Mail,
   RefreshCw,
   Filter,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
 } from "lucide-react";
 import {
   getNotificationLogs,
@@ -31,16 +31,32 @@ import {
 import { NotificationType } from "@/app/generated/prisma";
 
 const notificationTypes = [
-  { value: 'SCHEDULE' as NotificationType, label: 'Schedule Update', color: 'bg-blue-100 text-blue-800' },
-  { value: 'REMINDER' as NotificationType, label: 'Reminder', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'CHANGE' as NotificationType, label: 'Schedule Change', color: 'bg-orange-100 text-orange-800' },
-  { value: 'EMERGENCY' as NotificationType, label: 'Emergency', color: 'bg-red-100 text-red-800' }
+  {
+    value: "SCHEDULE" as NotificationType,
+    label: "Schedule Update",
+    color: "bg-blue-100 text-blue-800",
+  },
+  {
+    value: "REMINDER" as NotificationType,
+    label: "Reminder",
+    color: "bg-yellow-100 text-yellow-800",
+  },
+  {
+    value: "CHANGE" as NotificationType,
+    label: "Schedule Change",
+    color: "bg-orange-100 text-orange-800",
+  },
+  {
+    value: "EMERGENCY" as NotificationType,
+    label: "Emergency",
+    color: "bg-red-100 text-red-800",
+  },
 ];
 
 const statusOptions = [
-  { value: 'sent', label: 'Sent', icon: CheckCircle, color: 'text-green-600' },
-  { value: 'failed', label: 'Failed', icon: XCircle, color: 'text-red-600' },
-  { value: 'pending', label: 'Pending', icon: Clock, color: 'text-yellow-600' },
+  { value: "sent", label: "Sent", icon: CheckCircle, color: "text-green-600" },
+  { value: "failed", label: "Failed", icon: XCircle, color: "text-red-600" },
+  { value: "pending", label: "Pending", icon: Clock, color: "text-yellow-600" },
 ];
 
 export default function EmailLogPage() {
@@ -51,6 +67,7 @@ export default function EmailLogPage() {
     failed: number;
     pending: number;
     recentActivity: number;
+    byType?: Record<NotificationType, number>;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -59,13 +76,13 @@ export default function EmailLogPage() {
 
   // Filter state
   const [filters, setFilters] = useState({
-    type: '',
-    status: '',
-    faculty: '',
-    department: '',
-    level: '',
-    dateFrom: '',
-    dateTo: '',
+    type: "all",
+    status: "all",
+    faculty: "",
+    department: "",
+    level: "",
+    dateFrom: "",
+    dateTo: "",
   });
 
   // Load logs and stats on component mount and filter changes
@@ -82,7 +99,11 @@ export default function EmailLogPage() {
     try {
       const result = await getNotificationLogs({
         ...filters,
-        type: filters.type as NotificationType || undefined,
+        type:
+          filters.type !== "all"
+            ? (filters.type as NotificationType)
+            : undefined,
+        status: filters.status !== "all" ? filters.status : undefined,
         limit: itemsPerPage,
         offset: (currentPage - 1) * itemsPerPage,
       });
@@ -92,57 +113,67 @@ export default function EmailLogPage() {
         setTotalCount(result.total || 0);
       }
     } catch (error) {
-      console.error('Failed to load logs:', error);
+      console.error("Failed to load logs:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadStats = async () => {
+  const loadStats = async (): Promise<void> => {
     try {
       const result = await getNotificationStats();
-      if (result.success) {
-        setStats(result.data);
+
+      if (result.success && result.data) {
+        // pick only the fields your state expects
+        const { total, sent, failed, pending, recentActivity } = result.data;
+        setStats({ total, sent, failed, pending, recentActivity });
+      } else {
+        // optional: clear stats when there's no data
+        setStats(null);
       }
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error("Failed to load stats:", error);
+      // optional: clear stats on error
+      setStats(null);
     }
   };
 
   const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1); // Reset to first page when filters change
   };
 
   const clearFilters = () => {
     setFilters({
-      type: '',
-      status: '',
-      faculty: '',
-      department: '',
-      level: '',
-      dateFrom: '',
-      dateTo: '',
+      type: "",
+      status: "",
+      faculty: "",
+      department: "",
+      level: "",
+      dateFrom: "",
+      dateTo: "",
     });
     setCurrentPage(1);
   };
 
   const getNotificationTypeData = (type: NotificationType) => {
-    return notificationTypes.find(t => t.value === type) || notificationTypes[0];
+    return (
+      notificationTypes.find((t) => t.value === type) || notificationTypes[0]
+    );
   };
 
   const getStatusData = (status: string) => {
-    return statusOptions.find(s => s.value === status) || statusOptions[2];
+    return statusOptions.find((s) => s.value === status) || statusOptions[2];
   };
 
   const formatDate = (date: Date | null) => {
-    if (!date) return 'Not sent';
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    if (!date) return "Not sent";
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(new Date(date));
   };
 
@@ -163,7 +194,9 @@ export default function EmailLogPage() {
             </div>
           </div>
           <Button onClick={loadLogs} disabled={isLoading} variant="outline">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </header>
@@ -234,7 +267,9 @@ export default function EmailLogPage() {
                 <Input
                   type="date"
                   value={filters.dateFrom}
-                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  onChange={(e) =>
+                    handleFilterChange("dateFrom", e.target.value)
+                  }
                   className="border-0 p-0 focus-visible:ring-0"
                 />
               </div>
@@ -246,7 +281,7 @@ export default function EmailLogPage() {
                 <Input
                   type="date"
                   value={filters.dateTo}
-                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  onChange={(e) => handleFilterChange("dateTo", e.target.value)}
                   className="border-0 p-0 focus-visible:ring-0"
                 />
               </div>
@@ -255,12 +290,15 @@ export default function EmailLogPage() {
 
           {/* Other Filters */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Select onValueChange={(value) => handleFilterChange('type', value)} value={filters.type}>
+            <Select
+              onValueChange={(value) => handleFilterChange("type", value)}
+              value={filters.type}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 {notificationTypes.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
@@ -269,12 +307,15 @@ export default function EmailLogPage() {
               </SelectContent>
             </Select>
 
-            <Select onValueChange={(value) => handleFilterChange('status', value)} value={filters.status}>
+            <Select
+              onValueChange={(value) => handleFilterChange("status", value)}
+              value={filters.status}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 {statusOptions.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
@@ -286,25 +327,28 @@ export default function EmailLogPage() {
             <Input
               placeholder="Faculty"
               value={filters.faculty}
-              onChange={(e) => handleFilterChange('faculty', e.target.value)}
+              onChange={(e) => handleFilterChange("faculty", e.target.value)}
             />
 
             <Input
               placeholder="Department"
               value={filters.department}
-              onChange={(e) => handleFilterChange('department', e.target.value)}
+              onChange={(e) => handleFilterChange("department", e.target.value)}
             />
 
             <Input
               placeholder="Level"
               value={filters.level}
-              onChange={(e) => handleFilterChange('level', e.target.value)}
+              onChange={(e) => handleFilterChange("level", e.target.value)}
             />
           </div>
 
           <div className="mt-4 flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)} - {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} notifications
+              Showing{" "}
+              {Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)} -{" "}
+              {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount}{" "}
+              notifications
             </p>
             <Button variant="outline" onClick={clearFilters} size="sm">
               Clear Filters
@@ -316,7 +360,7 @@ export default function EmailLogPage() {
         <Card>
           <div className="p-6">
             <h3 className="font-medium mb-4">Notification History</h3>
-            
+
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
                 <div className="flex items-center gap-2">
@@ -327,7 +371,9 @@ export default function EmailLogPage() {
             ) : logs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No email notifications found matching the selected filters.</p>
+                <p>
+                  No email notifications found matching the selected filters.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -344,16 +390,25 @@ export default function EmailLogPage() {
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge className={typeData.color} variant="secondary">
+                            <Badge
+                              className={typeData.color}
+                              variant="secondary"
+                            >
                               {typeData.label}
                             </Badge>
-                            <div className={`flex items-center gap-1 ${statusData.color}`}>
+                            <div
+                              className={`flex items-center gap-1 ${statusData.color}`}
+                            >
                               <StatusIcon className="h-3 w-3" />
-                              <span className="text-xs font-medium">{statusData.label}</span>
+                              <span className="text-xs font-medium">
+                                {statusData.label}
+                              </span>
                             </div>
                           </div>
-                          
-                          <h4 className="font-medium text-sm mb-1">{log.subject}</h4>
+
+                          <h4 className="font-medium text-sm mb-1">
+                            {log.subject}
+                          </h4>
                           <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                             To: {log.recipientName} ({log.recipientEmail})
                           </p>
@@ -361,7 +416,7 @@ export default function EmailLogPage() {
                             {log.message}
                           </p>
                         </div>
-                        
+
                         <div className="text-right flex-shrink-0">
                           <p className="text-xs text-muted-foreground mb-1">
                             Created: {formatDate(log.createdAt)}
@@ -391,7 +446,9 @@ export default function EmailLogPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
                     disabled={currentPage === 1}
                   >
                     Previous
@@ -399,7 +456,9 @@ export default function EmailLogPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
                     disabled={currentPage === totalPages}
                   >
                     Next

@@ -52,12 +52,7 @@ export function StudentSidebar({
             collapsed={collapsed}
             onClick={() => router.push("/student/timetable-page")}
           />
-          <SidebarItem
-            icon={<Bell className="h-5 w-5" />}
-            text="Reminder"
-            collapsed={collapsed}
-            onClick={() => router.push("/student/my-reminders")}
-          />
+
           <SidebarItem
             icon={<Settings className="h-5 w-5" />}
             text="Settings"
